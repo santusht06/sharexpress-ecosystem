@@ -16,7 +16,6 @@
 # Postfix main.cf — Production Configuration
 # mail.sharexpress.in — Sharexpress Enterprise Mail
 
-# ─── System Identity (MUST MATCH PTR/rDNS RECORD) ────────────────────────────
 myhostname              = mail.sharexpress.in
 mydomain                = sharexpress.in
 myorigin                = $ mydomain
@@ -24,7 +23,6 @@ inet_interfaces         = all
 inet_protocols          = ipv4
 mydestination           = localhost.localdomain, localhost
 
-# ─── Virtual Mailbox Domains (hosted domains) ────────────────────────────────
 virtual_transport               = lmtp:inet:dovecot:2400
 virtual_mailbox_domains         = /etc/postfix/custom/virtual_domains
 virtual_mailbox_maps            = texthash:/etc/postfix/virtual_mailboxes
@@ -34,7 +32,6 @@ virtual_minimum_uid             = 5000
 virtual_uid_maps                = static:5000
 virtual_gid_maps                = static:5000
 
-# ─── TLS/SSL Configuration ───────────────────────────────────────────────────
 # Incoming SMTP TLS
 smtpd_tls_cert_file             = /etc/postfix/ssl/fullchain.pem
 smtpd_tls_key_file              = /etc/postfix/ssl/privkey.pem
