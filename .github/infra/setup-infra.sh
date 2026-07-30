@@ -129,35 +129,34 @@ HEALTHY=0
 TOTAL=4
 
 # MongoDB
-if docker exec sharexpress-mongodb mongosh --eval "db.adminCommand('ping')" --quiet &>/dev/null; then
+if docker exec sharexpress-mongodb mongosh --eval "db.adminCommand('ping')" --quiet 2>/dev/null | grep -q ok; then
   success "MongoDB ✅ healthy"
-  ((HEALTHY++))
+  HEALTHY=$((HEALTHY + 1))
 else
-  warn "MongoDB ⚠️  not yet ready (may need more time)"
+  warn "MongoDB ⚠️  not yet ready"
 fi
 
 # Redis
-REDIS_PASS_VAL=$(grep REDIS_PASSWORD "$ENV_FILE" | cut -d= -f2)
-if docker exec sharexpress-redis redis-cli --pass "$REDIS_PASS_VAL" ping | grep -q PONG; then
+REDIS_PASS_VAL=$(grep REDIS_PASSWORD "$ENV_FILE" | cut -d= -f2 || echo "")
+if docker exec sharexpress-redis redis-cli --pass "$REDIS_PASS_VAL" ping 2>/dev/null | grep -q PONG; then
   success "Redis ✅ healthy"
-  ((HEALTHY++))
+  HEALTHY=$((HEALTHY + 1))
 else
   warn "Redis ⚠️  not yet ready"
 fi
 
 # PostgreSQL
-PG_PASS_VAL=$(grep POSTGRES_PASSWORD "$ENV_FILE" | cut -d= -f2)
-if docker exec sharexpress-postgres pg_isready -U sharexpress &>/dev/null; then
+if docker exec sharexpress-postgres pg_isready -U sharexpress 2>/dev/null | grep -q "accepting connections"; then
   success "PostgreSQL ✅ healthy"
-  ((HEALTHY++))
+  HEALTHY=$((HEALTHY + 1))
 else
   warn "PostgreSQL ⚠️  not yet ready"
 fi
 
 # MinIO
-if curl -sf http://localhost:9002/minio/health/live &>/dev/null; then
+if curl -sf http://localhost:9002/minio/health/live 2>/dev/null; then
   success "MinIO ✅ healthy (API :9002, Console :9003)"
-  ((HEALTHY++))
+  HEALTHY=$((HEALTHY + 1))
 else
   warn "MinIO ⚠️  not yet ready"
 fi
