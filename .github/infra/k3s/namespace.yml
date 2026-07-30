@@ -1,0 +1,14 @@
+# Sharexpress Cloud — Kubernetes Namespaces
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sharexpress
+  labels:
+    app.kubernetes.io/managed-by: sharexpress-infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infra
+  labels:
+    app.kubernetes.io/managed-by: sharexpress-infra

@@ -1,0 +1,90 @@
+# Sharexpress Cloud — Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-frontend
+  namespace: sharexpress
+  labels:
+    app: cloud-frontend
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: cloud-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: node:20-alpine
+          workingDir: /app
+          command: ["node", "server/index.mjs"]
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: production
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: app-output
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: app-output
+          hostPath:
+            path: /var/www/cloud.sharexpress
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-frontend
+  namespace: sharexpress
+spec:
+  selector:
+    app: cloud-frontend
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloud-frontend-ingress
+  namespace: sharexpress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cloud-frontend
+                port:
+                  number: 3000

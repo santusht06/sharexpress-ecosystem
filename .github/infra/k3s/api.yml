@@ -1,0 +1,94 @@
+# Sharexpress Cloud — FastAPI Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-api
+  namespace: sharexpress
+  labels:
+    app: cloud-api
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloud-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: cloud-api
+    spec:
+      containers:
+        - name: api
+          image: python:3.12-slim
+          workingDir: /app
+          command: ["/app/.venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: cloud-api-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: app-source
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: app-source
+          hostPath:
+            path: /opt/sharexpress-cloud/backend
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-api
+  namespace: sharexpress
+spec:
+  selector:
+    app: cloud-api
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cloud-api-ingress
+  namespace: sharexpress
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: cloud-api
+                port:
+                  number: 8000
