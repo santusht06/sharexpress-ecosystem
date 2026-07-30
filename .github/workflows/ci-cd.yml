@@ -1,0 +1,189 @@
+# ────────────────────────────────────────────────────────────────────────────
+#  Sharexpress Cloud — Infrastructure Pipeline
+#  Runs on a self-hosted GitHub Actions runner installed on your VPS.
+#
+#  Jobs:
+#    1. ci        – lint → unit tests → build (frontend)
+#    2. deploy-fe – serve static .output/ via Nginx / Caddy on VPS
+#    3. deploy-be – restart FastAPI (uvicorn) systemd service on VPS
+#    4. healthcheck – verify API + frontend are up after deploy
+#
+#  Required GitHub Secrets (Settings → Secrets → Actions):
+#    VITE_API_URL        – e.g. https://api.cloud.sharexpress.in
+#    SESSION_SECRET_KEY  – random 32-char string
+# ────────────────────────────────────────────────────────────────────────────
+
+name: 🚀 CI / CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+
+  # ─── 1. CI — Lint + Test + Build ──────────────────────────────────────────
+  ci:
+    name: ✅ Lint · Test · Build
+    runs-on: self-hosted
+    timeout-minutes: 20
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🟢 Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: cloud.sharexpress/package-lock.json
+
+      - name: 📦 Install frontend dependencies
+        working-directory: cloud.sharexpress
+        run: npm ci
+
+      - name: 🔍 ESLint
+        working-directory: cloud.sharexpress
+        run: npm run lint
+
+      - name: 🧪 Vitest — unit + component tests
+        working-directory: cloud.sharexpress
+        run: npm run test
+
+      - name: 🔄 Circular dependency check (Madge)
+        working-directory: cloud.sharexpress
+        run: npm run test:circular
+
+      - name: 🏗️  Build frontend (Vite / Nitro)
+        working-directory: cloud.sharexpress
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: npm run build
+
+      - name: 💾 Cache .output for deploy jobs
+        uses: actions/cache@v4
+        with:
+          path: cloud.sharexpress/.output
+          key: output-${{ github.sha }}
+
+  # ─── 2. Deploy Frontend ───────────────────────────────────────────────────
+  deploy-fe:
+    name: 🌐 Deploy Frontend → VPS
+    needs: ci
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 💾 Restore build artifact
+        uses: actions/cache@v4
+        with:
+          path: cloud.sharexpress/.output
+          key: output-${{ github.sha }}
+
+      - name: 🚚 Sync .output/public → web root
+        run: |
+          DEPLOY_DIR="/var/www/cloud.sharexpress/public"
+          sudo mkdir -p "$DEPLOY_DIR"
+          sudo rsync -a --delete cloud.sharexpress/.output/public/ "$DEPLOY_DIR/"
+          echo "✅ Frontend synced to $DEPLOY_DIR"
+
+      - name: 🔁 Restart frontend SSR service (if applicable)
+        run: |
+          if systemctl list-units --full -all | grep -Fq 'sharexpress-cloud-fe.service'; then
+            sudo systemctl restart sharexpress-cloud-fe
+            sudo systemctl status sharexpress-cloud-fe --no-pager
+          else
+            echo "ℹ️  No sharexpress-cloud-fe service found — static-only mode."
+          fi
+
+  # ─── 3. Deploy Backend ────────────────────────────────────────────────────
+  deploy-be:
+    name: ⚙️  Deploy Backend → VPS
+    needs: ci
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: cloud.sharexpress/backend/requirements.txt
+
+      - name: 📦 Install backend dependencies
+        working-directory: cloud.sharexpress/backend
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: 🚚 Sync backend → /opt/sharexpress-cloud/backend
+        run: |
+          BACKEND_DIR="/opt/sharexpress-cloud/backend"
+          sudo mkdir -p "$BACKEND_DIR"
+          sudo rsync -a --delete \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='.env' \
+            cloud.sharexpress/backend/ "$BACKEND_DIR/"
+          echo "✅ Backend synced to $BACKEND_DIR"
+
+      - name: 🔁 Restart sharexpress-cloud-api service
+        run: |
+          sudo systemctl restart sharexpress-cloud-api
+          sudo systemctl status sharexpress-cloud-api --no-pager
+          echo "✅ API service restarted"
+
+  # ─── 4. Health Check ─────────────────────────────────────────────────────
+  healthcheck:
+    name: 🏥 Health Check
+    needs: [deploy-fe, deploy-be]
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 5
+
+    steps:
+      - name: 🌍 Wait for API to come online
+        run: |
+          echo "Polling API health check..."
+          for i in $(seq 1 12); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ API responded with HTTP 200"
+              exit 0
+            fi
+            echo "  Attempt $i/12 — HTTP $STATUS — retrying in 5s..."
+            sleep 5
+          done
+          echo "❌ API did not come online within 60s"
+          exit 1
+
+      - name: 🌍 Frontend reachability check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/ || true)
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+            echo "✅ Frontend responded with HTTP $STATUS"
+          else
+            echo "⚠️  Frontend check returned HTTP $STATUS — verify Nginx/Caddy config."
+          fi

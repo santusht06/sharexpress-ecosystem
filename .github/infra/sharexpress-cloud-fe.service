@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Sharexpress Cloud — Frontend SSR Node service (systemd)
+# Used only if you run the Nitro SSR server directly.
+# For pure static hosting via Nginx, this unit is not required.
+#
+# Install:
+#   sudo cp sharexpress-cloud-fe.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sharexpress-cloud-fe
+# ─────────────────────────────────────────────────────────────────────────────
+
+[Unit]
+Description=Sharexpress Cloud Frontend (Nitro SSR)
+After=network.target sharexpress-cloud-api.service
+Wants=sharexpress-cloud-api.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/cloud.sharexpress
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+ExecStart=/usr/bin/node /var/www/cloud.sharexpress/server/index.mjs
+
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sharexpress-cloud-fe
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/cloud.sharexpress
+
+[Install]
+WantedBy=multi-user.target
