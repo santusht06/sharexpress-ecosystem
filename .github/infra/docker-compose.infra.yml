@@ -22,19 +22,19 @@ volumes:
     driver: local
     driver_opts:
       type: none
-      device: /opt/sharexpress-data/mongodb
+      device: /mnt/storage/sharexpress-data/mongodb
       o: bind
   redis_data:
     driver: local
     driver_opts:
       type: none
-      device: /opt/sharexpress-data/redis
+      device: /mnt/storage/sharexpress-data/redis
       o: bind
   postgres_data:
     driver: local
     driver_opts:
       type: none
-      device: /opt/sharexpress-data/postgres
+      device: /mnt/storage/sharexpress-data/postgres
       o: bind
 
 

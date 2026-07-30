@@ -12,7 +12,7 @@ set -euo pipefail
 RUNNER_TOKEN="${1:-}"
 GH_REPO_URL="https://github.com/sharexpress/cloud.sharexpress.in"
 INFRA_DIR="/opt/sharexpress-infra"
-DATA_DIR="/opt/sharexpress-data"
+DATA_DIR="/mnt/storage/sharexpress-data"
 RUNNER_HOME="/opt/github-runner"
 RUNNER_USER="github-runner"
 RUNNER_VERSION="2.317.0"
