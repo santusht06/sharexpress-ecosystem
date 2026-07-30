@@ -153,12 +153,12 @@ else
   warn "PostgreSQL ⚠️  not yet ready"
 fi
 
-# MinIO
-if curl -sf http://localhost:9002/minio/health/live 2>/dev/null; then
-  success "MinIO ✅ healthy (API :9002, Console :9003)"
+# MinIO (existing instance)
+if curl -sf http://localhost:9000/minio/health/live 2>/dev/null; then
+  success "MinIO ✅ healthy (existing instance on :9000, console :9001)"
   HEALTHY=$((HEALTHY + 1))
 else
-  warn "MinIO ⚠️  not yet ready"
+  warn "MinIO ⚠️  not responding on :9000"
 fi
 
 echo ""
