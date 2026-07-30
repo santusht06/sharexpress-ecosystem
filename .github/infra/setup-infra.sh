@@ -155,8 +155,8 @@ else
 fi
 
 # MinIO
-if curl -sf http://localhost:9000/minio/health/live &>/dev/null; then
-  success "MinIO ✅ healthy (API :9000, Console :9001)"
+if curl -sf http://localhost:9002/minio/health/live &>/dev/null; then
+  success "MinIO ✅ healthy (API :9002, Console :9003)"
   ((HEALTHY++))
 else
   warn "MinIO ⚠️  not yet ready"

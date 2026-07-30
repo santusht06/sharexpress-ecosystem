@@ -55,7 +55,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD is required}
       MONGO_INITDB_DATABASE: sharexpress_cloud
     ports:
-      - "127.0.0.1:27017:27017"   # bind to localhost only — not exposed to internet
+      - "127.0.0.1:27018:27017"   # bind to 27018 to avoid collision with host Mongo
     volumes:
       - mongodb_data:/data/db
       - ./mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
@@ -89,7 +89,7 @@ services:
       --save 300 10
       --appendonly yes
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -115,7 +115,7 @@ services:
       POSTGRES_DB: sharexpress_cloud
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -141,8 +141,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
       MINIO_VOLUMES: /data
     ports:
-      - "127.0.0.1:9000:9000"   # S3 API
-      - "127.0.0.1:9001:9001"   # Web console
+      - "127.0.0.1:9002:9000"   # S3 API
+      - "127.0.0.1:9003:9001"   # Web console
     volumes:
       - minio_data:/data
     networks:
